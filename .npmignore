@@ -1,0 +1,18 @@
+# Source (only dist/ ships)
+src/
+tsconfig.json
+*.zakarya-backup
+
+# Dev tools
+.eslintrc*
+.prettierrc*
+jest.config*
+*.test.ts
+
+# Git
+.git/
+.gitignore
+
+# Node
+node_modules/
+npm-debug.log*

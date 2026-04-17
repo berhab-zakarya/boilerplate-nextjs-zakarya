@@ -1,0 +1,77 @@
+{
+    "name": "zakarya",
+    "version": "1.0.0",
+    "description": "Production-grade frontend framework generator for Next.js App Router with TanStack Query and feature-based architecture",
+    "bin": {
+        "zakarya": "./dist/index.js"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc --project tsconfig.json",
+        "prepublishOnly": "npm run build",
+        "dev": "ts-node src/index.ts",
+        "start": "node dist/index.js"
+    },
+    "keywords": [
+        "cli",
+        "nextjs",
+        "next.js",
+        "generator",
+        "scaffold",
+        "typescript",
+        "tanstack-query",
+        "react-query",
+        "axios",
+        "feature-based",
+        "architecture",
+        "boilerplate",
+        "create-app"
+    ],
+    "author": {
+        "name": "zakarya",
+        "email": "your@email.com",
+        "url": "https://github.com/yourusername/zakarya"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/yourusername/zakarya.git"
+    },
+    "bugs": {
+        "url": "https://github.com/yourusername/zakarya/issues"
+    },
+    "homepage": "https://github.com/yourusername/zakarya#readme",
+    "dependencies": {
+        "chalk": "^5.3.0",
+        "commander": "^11.1.0",
+        "execa": "^8.0.1",
+        "fs-extra": "^11.2.0",
+        "inquirer": "^9.2.12",
+        "ora": "^7.0.1",
+        "gradient-string": "^2.0.2",
+        "figlet": "^1.7.0",
+        "change-case": "^5.4.2",
+        "semver": "^7.5.4",
+        "glob": "^10.3.10",
+        "validate-npm-package-name": "^5.0.0"
+    },
+    "devDependencies": {
+        "@types/fs-extra": "^11.0.4",
+        "@types/figlet": "^1.5.8",
+        "@types/inquirer": "^9.0.7",
+        "@types/node": "^20.10.0",
+        "@types/semver": "^7.5.6",
+        "@types/validate-npm-package-name": "^4.0.2",
+        "typescript": "^5.3.2",
+        "ts-node": "^10.9.2"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
