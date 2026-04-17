@@ -3,6 +3,20 @@
 > **Production-grade frontend framework generator for Next.js (App Router)**
 > TanStack Query · Axios · TypeScript Strict · Feature-Based Architecture
 
+```text
+  ╔══════════════════════════════════════════╗
+  ║                                          ║
+  ║    ███████   █████   ██   ██  ██   ██    ║
+  ║       ███   ██   ██  ██  ██    ██ ██     ║
+  ║      ███    ███████  █████     ███       ║
+  ║     ███     ██   ██  ██  ██     ██       ║
+  ║    ███████  ██   ██  ██   ██    ██       ║
+  ║                                          ║
+  ║   Frontend Framework Generator  v1.0.0   ║
+  ║   Next.js · TanStack Query · TypeScript  ║
+  ╚══════════════════════════════════════════╝
+```
+
 ---
 
 ## Table of Contents
