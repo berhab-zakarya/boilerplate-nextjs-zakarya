@@ -37,7 +37,7 @@ apiClient.interceptors.request.use(
       typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
     if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = \`Bearer \${token}\`;
     }
 
     return config;

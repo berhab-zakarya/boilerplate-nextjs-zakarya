@@ -97,7 +97,7 @@ export const {{camel}}Service = {
    * Fetch a single {{singularCamel}} by ID.
    */
   getById: async (id: string): Promise<{{singularPascal}}> => {
-    const { data } = await apiClient.get<{{singularPascal}}>(`${BASE}/${id}`);
+    const { data } = await apiClient.get<{{singularPascal}}>(\`\${BASE}/\${id}\`);
     return data;
   },
 
@@ -113,7 +113,7 @@ export const {{camel}}Service = {
    * Update an existing {{singularCamel}}.
    */
   update: async ({ id, ...payload }: {{singularPascal}}UpdatePayload): Promise<{{singularPascal}}> => {
-    const { data } = await apiClient.patch<{{singularPascal}}>(`${BASE}/${id}`, payload);
+    const { data } = await apiClient.patch<{{singularPascal}}>(\`\${BASE}/\${id}\`, payload);
     return data;
   },
 
@@ -121,7 +121,7 @@ export const {{camel}}Service = {
    * Delete a {{singularCamel}} by ID.
    */
   delete: async (id: string): Promise<void> => {
-    await apiClient.delete(`${BASE}/${id}`);
+    await apiClient.delete(\`\${BASE}/\${id}\`);
   },
 } as const;
 `.trimStart();

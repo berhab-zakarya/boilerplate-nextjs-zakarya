@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "description": "Production-grade frontend framework generator for Next.js App Router with TanStack Query and feature-based architecture",
     "bin": {
-        "zakarya": "./dist/index.js"
+        "zakarya": "dist/index.js"
     },
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -35,18 +35,18 @@
     ],
     "author": {
         "name": "zakarya",
-        "email": "your@email.com",
-        "url": "https://github.com/yourusername/zakarya"
+        "email": "zakarya.berhab@univ-tlemcen.dz",
+        "url": "https://github.com/berhab-zakarya/zakarya"
     },
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/yourusername/zakarya.git"
+        "url": "git+https://github.com/berhab-zakarya/zakarya.git"
     },
     "bugs": {
-        "url": "https://github.com/yourusername/zakarya/issues"
+        "url": "https://github.com/berhab-zakarya/zakarya/issues"
     },
-    "homepage": "https://github.com/yourusername/zakarya#readme",
+    "homepage": "https://github.com/berhab-zakarya/zakarya#readme",
     "dependencies": {
         "chalk": "^5.3.0",
         "commander": "^11.1.0",

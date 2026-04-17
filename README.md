@@ -19,7 +19,7 @@
 6. [Generated Project Architecture](#generated-project-architecture)
 7. [Generator Engine Design](#generator-engine-design)
 8. [Complete Generated Feature Example](#complete-generated-feature-example)
-9. [zakarya.config.json Reference](#zakaryconfigjson-reference)
+9. [zakarya.config.json Reference](#zakaryaconfigjson-reference)
 10. [Plugin System](#plugin-system)
 11. [Safety System](#safety-system)
 12. [Naming Convention Engine](#naming-convention-engine)
@@ -86,4 +86,804 @@ zakarya (CLI entry)
     └── package.ts          ← Reads CLI version from package.json
 ```
 
-... (README truncated for brevity)
+### How `zakarya create` works internally
+
+```
+zakarya create my-app
+        │
+        ▼
+createCommand.action()
+        │
+        ├─ validateProjectName()          ← regex check on project name
+        ├─ resolveConfig()                ← read zakarya.config.json (or defaults)
+        │
+        ▼
+projectGenerator.generate()
+        │
+        ├─ promptUser()                   ← inquirer: pm, apiUrl, features
+        ├─ createDirectoryStructure()     ← mkdir src/features, src/shared/**
+        ├─ writeSharedLayer()             ← apiClient, endpoints, AppError, QueryClient, Providers
+        ├─ writeAppFiles()                ← app/layout.tsx, app/page.tsx, globals.css
+        ├─ writeConfigFiles()             ← next.config.ts, tsconfig.json, .env.local, package.json
+        ├─ writeConfig()                  ← zakarya.config.json
+        └─ installDependencies()          ← npm/yarn/pnpm/bun install
+```
+
+### How `zakarya generate feature` works internally
+
+```
+zakarya generate feature sales
+        │
+        ▼
+generateCommand → featureGenerator.generate()
+        │
+        ├─ namingEngine.derive('sales')
+        │     → { pascal: 'Sales', camel: 'sales', kebab: 'sales',
+        │          singularPascal: 'Sale', pluralPascal: 'Sales', … }
+        │
+        ├─ createDirectories()
+        │     src/features/sales/{types,services,queries,mutations,hooks,components}/
+        │
+        ├─ generateFiles()  (for each template)
+        │     ├─ templateEngine.render(typeTemplate(), context)
+        │     ├─ safety.safeWrite(filePath, content, force)
+        │     └─ [repeat for all 8 files]
+        │
+        ├─ registerEndpoint()
+        │     injectionEngine.registerEndpoint(
+        │       'src/shared/api/endpoints.constants.ts',
+        │       'SALES', '/sales'
+        │     )
+        │
+        └─ updateFeaturesBarrel()
+              injectionEngine.appendToBarrel(
+                'src/features/index.ts',
+                "export * as salesFeature from './sales';"
+              )
+```
+
+---
+
+## Internal Folder Structure
+
+```
+zakarya/                         ← CLI package root
+├── src/
+│   ├── index.ts                 ← Entry point, bootstraps Commander
+│   ├── commands/
+│   │   ├── create.ts
+│   │   ├── init.ts
+│   │   ├── generate.ts
+│   │   └── doctor.ts
+│   ├── generators/
+│   │   ├── project.generator.ts
+│   │   ├── feature.generator.ts
+│   │   └── resource.generator.ts
+│   ├── engine/
+│   │   ├── naming.engine.ts
+│   │   ├── template.engine.ts
+│   │   └── injection.engine.ts
+│   ├── templates/
+│   │   ├── feature/
+│   │   │   └── feature.templates.ts   ← all 8 feature file templates
+│   │   └── project/
+│   │       └── project.templates.ts   ← shared layer + app templates
+│   ├── config/
+│   │   ├── config.types.ts
+│   │   └── config.resolver.ts
+│   ├── plugins/
+│   │   └── plugin.system.ts
+│   ├── safety/
+│   │   └── safety.system.ts
+│   └── utils/
+│       ├── banner.ts
+│       └── package.ts
+├── dist/                        ← Compiled output (git-ignored)
+├── package.json
+├── tsconfig.json
+└── README.md
+```
+
+---
+
+## Installation
+
+```bash
+# Global install (recommended)
+npm install -g zakarya
+
+# Or use without installing
+npx zakarya create my-app
+```
+
+---
+
+## Commands
+
+### `zakarya create`
+
+```bash
+zakarya create <project-name> [options]
+zakarya init <project-name> [options]      # alias
+
+Options:
+  -y, --yes              Skip prompts, use defaults
+  -f, --force            Overwrite existing files
+  --api-url <url>        Override API base URL
+  --plugins <list>       Comma-separated plugins (e.g. auth,payments)
+
+Examples:
+  zakarya create my-app
+  zakarya create my-app --yes --api-url https://api.myapp.com
+  zakarya create my-app --plugins auth,payments
+```
+
+**What gets created:**
+
+```
+my-app/
+├── app/
+│   ├── layout.tsx           ← RootLayout with QueryProvider
+│   ├── page.tsx             ← Welcome page
+│   └── globals.css
+├── src/
+│   ├── features/            ← Feature modules live here
+│   │   └── index.ts         ← Features barrel (auto-updated by generator)
+│   └── shared/
+│       ├── api/
+│       │   ├── client.ts            ← Axios singleton + interceptors
+│       │   └── endpoints.constants.ts  ← All endpoint paths
+│       ├── errors/
+│       │   └── app.error.ts         ← Normalized AppError class
+│       ├── tanstack/
+│       │   ├── query-client.ts      ← Singleton QueryClient
+│       │   └── providers.tsx        ← <QueryProvider> wrapper
+│       ├── constants/
+│       ├── utils/
+│       ├── config/
+│       └── types/
+├── .env.local
+├── .env.example
+├── .gitignore
+├── next.config.ts
+├── tsconfig.json
+├── package.json
+└── zakarya.config.json
+```
+
+---
+
+### `zakarya generate feature`
+
+```bash
+zakarya generate feature <name> [options]
+zakarya g feature <name>                   # alias
+
+Options:
+  -f, --force       Overwrite existing files without confirmation
+  --root <path>     Project root (default: cwd)
+
+Examples:
+  zakarya generate feature sales
+  zakarya generate feature salesOrder
+  zakarya generate feature invoice-items
+  zakarya g feature products --force
+```
+
+**Generated structure:**
+
+```
+src/features/sales/
+├── types/
+│   └── Sale.types.ts            ← Sale, SaleDraft, SaleUpdatePayload, SaleFilters, SalesResponse
+├── services/
+│   └── sales.service.ts         ← salesService.getAll/getById/create/update/delete
+├── queries/
+│   ├── sales.keys.ts            ← salesKeys query key factory
+│   └── sales.queries.ts         ← salesListQueryOptions, salesDetailQueryOptions
+├── mutations/
+│   └── sales.mutations.ts       ← useCreateSaleMutation, useUpdateSaleMutation, useDeleteSaleMutation
+├── hooks/
+│   ├── useSales.ts              ← useSales(filters?) → useQuery(salesListQueryOptions)
+│   └── useSale.ts               ← useSale(id) → useQuery(salesDetailQueryOptions)
+├── components/                  ← (empty, for feature UI components)
+└── index.ts                     ← Public barrel export
+```
+
+Also automatically:
+- Registers `SALES_BASE: '/sales'` in `src/shared/api/endpoints.constants.ts`
+- Adds `export * as salesFeature from './sales';` to `src/features/index.ts`
+
+---
+
+### `zakarya generate resource`
+
+```bash
+zakarya generate resource <name> [options]
+zakarya g resource <name>
+
+Options:
+  -f, --force     Overwrite existing files
+  --root <path>   Project root
+
+Examples:
+  zakarya generate resource products
+  zakarya generate resource auth
+  zakarya generate resource orders
+```
+
+Resource generation includes **smart domain presets** for well-known names:
+
+| Resource  | Smart additions                                          |
+|-----------|----------------------------------------------------------|
+| `auth`    | login / register / reset-password / token-refresh flows  |
+| `products`| inventory tracking, category filters, search/facets      |
+| `sales`   | pagination, date range filters, status filters           |
+| `orders`  | order status flow, order items, shipping tracking        |
+| `users`   | role management, permission gates, profile management    |
+| *(other)* | Standard CRUD                                            |
+
+---
+
+### `zakarya doctor`
+
+```bash
+zakarya doctor [--root <path>]
+```
+
+Validates your project's architectural health:
+
+- ✓ `zakarya.config.json` exists
+- ✓ All shared layer files present (`client.ts`, `app.error.ts`, etc.)
+- ✓ No cross-feature imports (feature isolation rule)
+- ✓ All features have required sub-directories
+- ✓ `endpoints.constants.ts` has injection marker
+
+**Example output:**
+```
+zakarya doctor — Architecture Health Report
+──────────────────────────────────────────
+
+✖ 1 error(s):
+  • Cross-feature import violation in src/features/orders/services/orders.service.ts:
+    Feature "orders" imports from feature "products".
+    Move shared logic to src/shared/ instead.
+
+⚠ 1 warning(s):
+  • Feature "invoices" is missing the "mutations/" sub-directory.
+
+  11 of 13 checks passed.
+```
+
+---
+
+## Generated Project Architecture
+
+```
+src/
+├── features/                     ← ISOLATED feature modules
+│   ├── index.ts                  ← Auto-updated barrel
+│   ├── sales/
+│   │   ├── types/
+│   │   ├── services/
+│   │   ├── queries/
+│   │   ├── mutations/
+│   │   ├── hooks/
+│   │   ├── components/
+│   │   └── index.ts
+│   └── products/
+│       └── …
+│
+└── shared/                       ← GLOBAL infrastructure (no feature imports)
+    ├── api/
+    │   ├── client.ts             ← Axios singleton
+    │   └── endpoints.constants.ts
+    ├── errors/
+    │   └── app.error.ts
+    ├── tanstack/
+    │   ├── query-client.ts
+    │   └── providers.tsx
+    ├── constants/
+    ├── utils/
+    ├── config/
+    └── types/
+```
+
+**Architecture Rules (enforced by `zakarya doctor`):**
+
+1. Features are **fully isolated** — no feature imports another feature
+2. All API calls go through `shared/api/client.ts` (Axios singleton)
+3. All errors surface as `AppError` from `shared/errors/app.error.ts`
+4. All query configuration flows from `shared/tanstack/query-client.ts`
+5. Endpoint paths live exclusively in `shared/api/endpoints.constants.ts`
+6. Components import **only hooks** from their own feature's `hooks/` directory
+
+---
+
+## Generator Engine Design
+
+### TemplateEngine
+
+Lightweight `{{VARIABLE}}` interpolation with conditional and iteration support.
+
+```typescript
+// Supports:
+templateEngine.render(`
+  export interface {{singularPascal}} {
+    id: string;
+    // fields…
+  }
+
+  {{#if withZod}}
+  export const {{camel}}Schema = z.object({ id: z.string() });
+  {{/if}}
+
+  {{#each endpoints}}
+  // Endpoint: {{item}}
+  {{/each}}
+`, context);
+```
+
+No external template library dependency — pure regex-based, zero overhead.
+
+### NamingEngine
+
+Single source of truth for all identifier casing. Given any input:
+
+```typescript
+namingEngine.derive('sales-order')
+// →
+{
+  raw:            'sales-order',
+  camel:          'salesOrder',
+  pascal:         'SalesOrder',
+  kebab:          'sales-order',
+  snake:          'sales_order',
+  screamingSnake: 'SALES_ORDER',
+  singularCamel:  'salesOrder',  // best-effort English singularization
+  singularPascal: 'SalesOrder',
+  pluralCamel:    'salesOrders',
+  pluralPascal:   'SalesOrders',
+}
+```
+
+Derived hook/service names:
+```typescript
+engine.hookName(variants, 'Query')        // → useSalesOrderQuery
+engine.serviceName(variants)              // → salesOrderService
+engine.queryKeysName(variants)            // → salesOrderKeys
+engine.mutationName(variants, 'create')   // → createSalesOrderMutation
+```
+
+### InjectionEngine
+
+Safe mutation of existing generated files without breaking user code.
+
+```typescript
+// Injects after a marker comment — idempotent
+await injectionEngine.injectAtMarker(
+  'src/shared/api/endpoints.constants.ts',
+  '// [zakarya:inject:endpoints]',
+  "  SALES_BASE: '/sales',",
+  'SALES_BASE'   // idempotency key — skips if already present
+);
+
+// Appends to barrel — skips if export already there
+await injectionEngine.appendToBarrel(
+  'src/features/index.ts',
+  "export * as salesFeature from './sales';"
+);
+```
+
+---
+
+## Complete Generated Feature Example
+
+Running `zakarya generate feature sales` produces:
+
+### `src/features/sales/types/Sale.types.ts`
+
+```typescript
+export interface Sale {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  // TODO: add your Sale-specific fields here
+}
+
+export interface SaleDraft {
+  // TODO: fields required to create a new Sale
+}
+
+export interface SaleUpdatePayload {
+  id: string;
+  // TODO: fields allowed to update
+}
+
+export interface SaleFilters {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: keyof Sale;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface SalesResponse {
+  data: Sale[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+```
+
+### `src/features/sales/services/sales.service.ts`
+
+```typescript
+import { apiClient } from '@/shared/api/client';
+import { ENDPOINTS } from '@/shared/api/endpoints.constants';
+import type { Sale, SaleDraft, SaleUpdatePayload, SaleFilters, SalesResponse } from '../types/Sale.types';
+
+const BASE = ENDPOINTS.SALES_BASE;
+
+export const salesService = {
+  getAll:   async (filters?: SaleFilters): Promise<SalesResponse> => {
+    const { data } = await apiClient.get<SalesResponse>(BASE, { params: filters });
+    return data;
+  },
+  getById:  async (id: string): Promise<Sale> => {
+    const { data } = await apiClient.get<Sale>(`${BASE}/${id}`);
+    return data;
+  },
+  create:   async (payload: SaleDraft): Promise<Sale> => {
+    const { data } = await apiClient.post<Sale>(BASE, payload);
+    return data;
+  },
+  update:   async ({ id, ...payload }: SaleUpdatePayload): Promise<Sale> => {
+    const { data } = await apiClient.patch<Sale>(`${BASE}/${id}`, payload);
+    return data;
+  },
+  delete:   async (id: string): Promise<void> => {
+    await apiClient.delete(`${BASE}/${id}`);
+  },
+} as const;
+```
+
+### `src/features/sales/queries/sales.keys.ts`
+
+```typescript
+import type { SaleFilters } from '../types/Sale.types';
+
+export const salesKeys = {
+  all:     ['sales'] as const,
+  lists:   () => [...salesKeys.all, 'list'] as const,
+  list:    (filters?: SaleFilters) => [...salesKeys.lists(), { filters }] as const,
+  details: () => [...salesKeys.all, 'detail'] as const,
+  detail:  (id: string) => [...salesKeys.details(), id] as const,
+} as const;
+```
+
+### `src/features/sales/queries/sales.queries.ts`
+
+```typescript
+import { queryOptions } from '@tanstack/react-query';
+import { salesService } from '../services/sales.service';
+import { salesKeys } from './sales.keys';
+import type { SaleFilters } from '../types/Sale.types';
+
+export const salesListQueryOptions = (filters?: SaleFilters) =>
+  queryOptions({
+    queryKey: salesKeys.list(filters),
+    queryFn:  () => salesService.getAll(filters),
+    staleTime: 60_000,
+  });
+
+export const salesDetailQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: salesKeys.detail(id),
+    queryFn:  () => salesService.getById(id),
+    enabled:  Boolean(id),
+    staleTime: 60_000,
+  });
+```
+
+### `src/features/sales/mutations/sales.mutations.ts`
+
+```typescript
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { salesService } from '../services/sales.service';
+import { salesKeys } from '../queries/sales.keys';
+import type { SaleDraft, SaleUpdatePayload } from '../types/Sale.types';
+
+export function useCreateSaleMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SaleDraft) => salesService.create(payload),
+    onSuccess:  () => queryClient.invalidateQueries({ queryKey: salesKeys.lists() }),
+  });
+}
+
+export function useUpdateSaleMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SaleUpdatePayload) => salesService.update(payload),
+    onSuccess:  (updated) => {
+      queryClient.invalidateQueries({ queryKey: salesKeys.lists() });
+      queryClient.setQueryData(salesKeys.detail(updated.id), updated);
+    },
+  });
+}
+
+export function useDeleteSaleMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => salesService.delete(id),
+    onSuccess:  (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: salesKeys.lists() });
+      queryClient.removeQueries({ queryKey: salesKeys.detail(id) });
+    },
+  });
+}
+```
+
+### `src/features/sales/hooks/useSales.ts`
+
+```typescript
+import { useQuery } from '@tanstack/react-query';
+import { salesListQueryOptions } from '../queries/sales.queries';
+import type { SaleFilters } from '../types/Sale.types';
+
+export function useSales(filters?: SaleFilters) {
+  return useQuery(salesListQueryOptions(filters));
+}
+```
+
+### `src/features/sales/hooks/useSale.ts`
+
+```typescript
+import { useQuery } from '@tanstack/react-query';
+import { salesDetailQueryOptions } from '../queries/sales.queries';
+
+export function useSale(id: string) {
+  return useQuery(salesDetailQueryOptions(id));
+}
+```
+
+### `src/features/sales/index.ts`
+
+```typescript
+// Types
+export type { Sale, SaleDraft, SaleUpdatePayload, SaleFilters, SalesResponse } from './types/Sale.types';
+
+// Hooks (primary interface for components)
+export { useSales } from './hooks/useSales';
+export { useSale }  from './hooks/useSale';
+
+// Mutations
+export { useCreateSaleMutation, useUpdateSaleMutation, useDeleteSaleMutation } from './mutations/sales.mutations';
+
+// Query options (for server-side prefetching)
+export { salesListQueryOptions, salesDetailQueryOptions } from './queries/sales.queries';
+
+// Query keys (for targeted invalidation)
+export { salesKeys } from './queries/sales.keys';
+```
+
+**Component usage (zero boilerplate):**
+
+```typescript
+import { useSales, useCreateSaleMutation } from '@/features/sales';
+
+export function SalesTable() {
+  const { data, isLoading } = useSales({ page: 1, pageSize: 20 });
+  const createSale = useCreateSaleMutation();
+
+  if (isLoading) return <Spinner />;
+
+  return (
+    <>
+      {data?.data.map(sale => <SaleRow key={sale.id} sale={sale} />)}
+      <button onClick={() => createSale.mutate({ /* draft */ })}>New Sale</button>
+    </>
+  );
+}
+```
+
+---
+
+## zakarya.config.json Reference
+
+```jsonc
+{
+  "version": "1",
+  "api": {
+    "baseUrl": "http://localhost:3001/api",   // Written to shared/api/client.ts
+    "timeout": 10000,                          // Axios timeout (ms)
+    "withAuth": true                           // Include auth interceptor
+  },
+  "query": {
+    "staleTime": 60000,                        // Default query staleTime (ms)
+    "gcTime": 300000,                          // Default garbage collection time
+    "retry": 1,                                // Retry count (false to disable)
+    "refetchOnWindowFocus": false              // Global refetch on focus
+  },
+  "folders": {
+    "srcDir": "src",                           // Source root
+    "featuresDir": "features",                 // Features directory name
+    "sharedDir": "shared"                      // Shared directory name
+  },
+  "features": {
+    "zustand": false,          // Include Zustand
+    "zod": true,               // Include Zod schemas
+    "reactHookForm": true,     // Include React Hook Form
+    "i18n": false,             // Include i18n setup
+    "storybook": false,        // Include Storybook
+    "playwright": false,       // Include Playwright e2e
+    "vitest": true             // Include Vitest unit tests
+  },
+  "plugins": [
+    { "name": "auth" },
+    { "name": "payments", "options": { "provider": "stripe" } }
+  ]
+}
+```
+
+---
+
+## Plugin System
+
+Plugins extend zakarya without touching core.
+
+### Plugin Contract
+
+```typescript
+export interface ZakaryaPlugin {
+  name: string;
+  version: string;
+  setup(ctx: PluginContext): void | Promise<void>;
+  hooks?: {
+    beforeProjectCreated?(ctx: PluginContext): Promise<void>;
+    afterProjectCreated?(ctx: PluginContext): Promise<void>;
+    beforeFeatureGenerated?(featureName: string, ctx: PluginContext): Promise<void>;
+    afterFeatureGenerated?(featureName: string, ctx: PluginContext): Promise<void>;
+  };
+}
+```
+
+### Writing a Plugin
+
+```typescript
+// zakarya-plugin-auth/index.ts
+import type { ZakaryaPlugin, PluginContext } from 'zakarya/plugin';
+
+const authPlugin: ZakaryaPlugin = {
+  name: 'auth',
+  version: '1.0.0',
+
+  async setup(ctx: PluginContext) {
+    ctx.log('Setting up auth plugin...');
+
+    // Register a custom generator command
+    ctx.registerGenerator('login-flow', {
+      description: 'Generates complete login form + auth feature',
+      async generate(opts) {
+        // Generation logic here
+      },
+    });
+  },
+
+  hooks: {
+    async afterProjectCreated(ctx) {
+      // Auto-generate auth feature after project creation
+      ctx.log('Auto-generating auth feature...');
+    },
+  },
+};
+
+export default authPlugin;
+```
+
+### Plugin Discovery Chain
+
+```
+1. ./zakarya-plugins/<n>/index.ts    ← local monorepo plugin
+2. node_modules/zakarya-plugin-<n>   ← npm package
+3. node_modules/@zakarya/<n>         ← scoped npm package
+```
+
+### Usage
+
+```bash
+zakarya create my-app --plugins auth,payments
+```
+
+---
+
+## Safety System
+
+Every destructive operation is guarded:
+
+```
+SafetySystem
+├── backup(filePath)           → creates file.ts.1234567890.zakarya-backup
+├── confirm(message)           → interactive y/n prompt
+├── safeWrite(path, content)   → ask before overwrite + auto-backup
+└── cleanupBackups(rootDir)    → removes all .zakarya-backup files after successful run
+```
+
+All backups are cleaned up after a successful generation. On failure, backups remain so you can restore.
+
+---
+
+## Naming Convention Engine
+
+Strict, automatic, consistent — no manual naming decisions needed.
+
+| Input | camel | pascal | kebab | snake | screamingSnake |
+|-------|-------|--------|-------|-------|----------------|
+| `sales` | `sales` | `Sales` | `sales` | `sales` | `SALES` |
+| `salesOrder` | `salesOrder` | `SalesOrder` | `sales-order` | `sales_order` | `SALES_ORDER` |
+| `invoice-item` | `invoiceItem` | `InvoiceItem` | `invoice-item` | `invoice_item` | `INVOICE_ITEM` |
+| `product_category` | `productCategory` | `ProductCategory` | `product-category` | `product_category` | `PRODUCT_CATEGORY` |
+
+---
+
+## Dependency Rules
+
+```
+┌─────────────────────────────────┐
+│           Components            │  import from hooks/ only
+├─────────────────────────────────┤
+│             Hooks               │  import from queries/ + mutations/
+├─────────────────────────────────┤
+│      Queries / Mutations        │  import from services/ + keys/
+├─────────────────────────────────┤
+│            Services             │  import from shared/api ONLY
+├─────────────────────────────────┤
+│          shared/api             │  no feature imports
+│          shared/errors          │
+│          shared/tanstack        │
+└─────────────────────────────────┘
+
+FORBIDDEN:
+  features/sales → features/products   ✖
+  shared/api     → features/sales      ✖
+  services/      → hooks/              ✖
+```
+
+---
+
+## Evolution Roadmap
+
+### v1.1 — Generator Completions
+- `zakarya generate component <Feature> <ComponentName>`
+- `zakarya generate schema <n>` (Zod schema generator)
+- `zakarya generate store <n>` (Zustand store generator)
+
+### v1.2 — API Contract Sync
+- `zakarya sync --openapi ./openapi.json`
+- Auto-generate types and services from OpenAPI/Swagger spec
+- Validate existing types against updated spec
+
+### v1.3 — Plugin Ecosystem
+- `zakarya-plugin-auth` (complete auth flows)
+- `zakarya-plugin-payments` (Stripe integration)
+- `zakarya-plugin-i18n` (next-intl setup)
+- `zakarya-plugin-storybook` (Storybook scaffolding)
+- Plugin registry at registry.zakarya.dev
+
+### v2.0 — Multi-Framework Support
+- Config flag: `--framework react-vite` | `--framework next` | `--framework remix`
+- Shared engine, framework-specific adapters
+- Same CLI, multiple output targets
+
+### v2.1 — AI-Assisted Generation
+- `zakarya generate feature sales --from-description "Sales feature with order tracking, filtering by date and status"`
+- LLM generates types based on plain-English descriptions
+- Human reviews generated types → service/queries auto-follow
+
+### v3.0 — Full Ecosystem
+- `zakarya dev` — watches for new files, validates architecture in real-time
+- `zakarya migrate` — upgrades generated code between zakarya versions
+- VS Code extension for inline architecture validation
+- CI/CD integration: `zakarya doctor --ci` (exits 1 on violations)
